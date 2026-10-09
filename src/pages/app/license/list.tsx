@@ -1,3 +1,4 @@
+import { PromoAction } from "@/components/licenses/promo-dialog"
 import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -45,6 +46,7 @@ export default function LicensesList() {
   return (
     <section className="flex h-screen flex-col">
       <PageHeader title="Licenses">
+        <PromoAction />
         <Can permission="license.create">
           <Button
             size="sm"

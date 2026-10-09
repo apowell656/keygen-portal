@@ -10,6 +10,7 @@ config.validate()
 
 export default async function create(
   values: Schemas.Users.CreateValues,
+  options?: { promo?: boolean },
 ): Promise<UserResponse> {
   const { groupId, permissions, ...attributes } = values
   void groupId
@@ -26,6 +27,7 @@ export default async function create(
 
   const result = (await client.request(`/accounts/${config.id}/users`, {
     method: "POST",
+    promo: options?.promo,
     body: JSON.stringify(body),
   })) as UserResponse
 
