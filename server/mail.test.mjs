@@ -325,3 +325,30 @@ it("blocks duplicate provisioning submissions while the first write is pending",
   finish()
   expect((await first).status).toBe(200)
 })
+
+it("uses the stored marketing name throughout email and omits pricing", () => {
+  const f = fixture()
+  const license = f.records[`/licenses/${id}`]
+  license.attributes.metadata.marketingProductName = "Forge Studio <Pro>"
+  const mail = renderMail(
+    license,
+    f.records["/users/user"],
+    f.records["/products/product"],
+    config.support,
+  )
+  expect(mail.subject).toBe("Your Forge Studio <Pro> promotional license")
+  expect(mail.html).toContain("Forge Studio &lt;Pro&gt;")
+  expect(mail.text).toContain("Forge Studio <Pro>")
+  expect(mail.html).not.toContain("Amount")
+  expect(mail.text).not.toContain("Amount:")
+  expect(mail.html).not.toContain("$0.00")
+  license.attributes.metadata.marketingProductName = ""
+  expect(
+    renderMail(
+      license,
+      f.records["/users/user"],
+      f.records["/products/product"],
+      config.support,
+    ).subject,
+  ).toContain("Nimbus")
+})

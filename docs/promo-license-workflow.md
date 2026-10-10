@@ -58,3 +58,5 @@ Development verification passed with placeholder public configuration in disposa
 - Secret-value scan confirmed that the legacy admin token and SMTP password are absent from source, documentation, service files and production assets.
 
 Node/pnpm were unavailable on the session host, so equivalent project binaries were run inside an isolated Node container. The frontend lockfile remains unchanged. No real Keygen mutations, SMTP deliveries, production deployment, commits or remote pushes were performed. Before deployment, review and commit/push the feature branch, pin the wrapper to that fork commit, configure the private service, and verify a controlled staging workflow.
+
+The optional Product name for email field supplies a marketing name in the preview, subject, HTML and plain-text email. It is stored as `marketingProductName` in license metadata so retries retain it; blank values use the actual Keygen product name. The product relationship and `app` code remain based on the selected product. Promotional emails omit pricing.

@@ -177,3 +177,16 @@ describe("promotional provisioning", () => {
     },
   )
 })
+
+it("stores an optional marketing name without changing product identity", () => {
+  const v = PromoSchema.parse({ ...values, marketingName: "  Forge Studio  " })
+  expect(metadata(v, product)).toMatchObject({
+    app: "nimbus",
+    marketingProductName: "Forge Studio",
+  })
+  expect(metadata(values, product)).not.toHaveProperty("marketingProductName")
+  expect(
+    PromoSchema.safeParse({ ...values, marketingName: "x".repeat(256) })
+      .success,
+  ).toBe(false)
+})

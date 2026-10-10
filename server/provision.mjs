@@ -136,7 +136,9 @@ export function createProvisionHandler({ config, apiFetch = fetch }) {
             !m.reason.trim() ||
             !m.recipientFirstName.trim() ||
             !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.recipientEmail) ||
-            Object.keys(m).some((k) => ![...fields, "promo"].includes(k)) ||
+            Object.keys(m).some(
+              (k) => ![...fields, "promo", "marketingProductName"].includes(k),
+            ) ||
             Object.keys(a).some((k) => !["name", "metadata"].includes(k)) ||
             Object.keys(body.data.relationships).some((k) => k !== "policy") ||
             body.data.relationships.policy.data.type !== "policies" ||
@@ -147,6 +149,14 @@ export function createProvisionHandler({ config, apiFetch = fetch }) {
             return respond(400, {
               error: "Invalid promotional metadata or policy",
             })
+          if (
+            m.marketingProductName !== undefined &&
+            (typeof m.marketingProductName !== "string" ||
+              !m.marketingProductName.trim() ||
+              m.marketingProductName.length > 255 ||
+              /[\r\n]/.test(m.marketingProductName))
+          )
+            return respond(400, { error: "Invalid marketing product name" })
           // Tie metadata to the chosen policy's product; Keygen still enforces permission and constraints.
           const policyResponse = await call(
             `/policies/${encodeURIComponent(body.data.relationships.policy.data.id)}`,

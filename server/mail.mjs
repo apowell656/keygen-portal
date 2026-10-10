@@ -13,19 +13,20 @@ export const escapeHtml = (value) =>
   )
 export function renderMail(license, user, product, support) {
   const values = {
-    PRODUCT_NAME: product.attributes.name,
+    PRODUCT_NAME:
+      license.attributes.metadata.marketingProductName?.trim() ||
+      product.attributes.name,
     LICENSE_KEY: license.attributes.key,
-    AMOUNT: "$0.00",
     ORDER_DATE: license.attributes.created,
     CUSTOMER_EMAIL: user.attributes.email,
     SUPPORT_EMAIL: support,
   }
   return {
-    subject: `Your ${product.attributes.name.replace(/[\r\n]/g, "")} promotional license`,
+    subject: `Your ${values.PRODUCT_NAME.replace(/[\r\n]/g, "")} promotional license`,
     html: template.replace(/\{\{\s*(\w+)\s*\}\}/g, (_, key) =>
       escapeHtml(values[key] ?? ""),
     ),
-    text: `Hello ${user.attributes.firstName || ""},\n\nThank you for taking ${values.PRODUCT_NAME} for a spin.\n\nYour license key: ${values.LICENSE_KEY}\nLicense: ${license.attributes.name}\nIssued: ${values.ORDER_DATE}\nReason: ${license.attributes.metadata.reason}\nAmount: $0.00\nCustomer: ${values.CUSTOMER_EMAIL}\n\nOpen ${values.PRODUCT_NAME} and paste the license key during activation.\nIf you received this message in error, reply to this email.\nSupport: ${support}`,
+    text: `Hello ${user.attributes.firstName || ""},\n\nThank you for taking ${values.PRODUCT_NAME} for a spin.\n\nYour license key: ${values.LICENSE_KEY}\nLicense: ${license.attributes.name}\nIssued: ${values.ORDER_DATE}\nReason: ${license.attributes.metadata.reason}\nCustomer: ${values.CUSTOMER_EMAIL}\n\nOpen ${values.PRODUCT_NAME} and paste the license key during activation.\nIf you received this message in error, reply to this email.\nSupport: ${support}`,
   }
 }
 export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {

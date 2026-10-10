@@ -14,6 +14,7 @@ export const PromoSchema = z.object({
   email: z.string().trim().email().max(254),
   productId: z.string().min(1),
   policyId: z.string().min(1),
+  marketingName: z.string().trim().max(255).default(""),
   name: z.string().trim().max(255).default(""),
   reason: z.string().trim().min(1).max(255),
   tag: z.string().trim().max(255).default(""),
@@ -38,6 +39,7 @@ export function metadata(v: PromoValues, product: Product) {
   return {
     app: product.attributes.code || product.id,
     promo: true,
+    ...(v.marketingName ? { marketingProductName: v.marketingName } : {}),
     promoType: v.tag,
     recipientEmail: v.email,
     recipientFirstName: v.firstName,

@@ -71,6 +71,7 @@ function PromoDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const [values, setValues] = useState<PromoValues>({
+    marketingName: "",
     firstName: "",
     lastName: "",
     email: "",
@@ -168,11 +169,10 @@ function PromoDialog({
   }
   const preview = product
     ? renderEmail({
-        PRODUCT_NAME: product.attributes.name,
+        PRODUCT_NAME: values.marketingName.trim() || product.attributes.name,
         LICENSE_KEY:
           progress.license?.attributes.key ||
           "[PREVIEW — license key not yet generated]",
-        AMOUNT: "$0.00",
         ORDER_DATE:
           progress.license?.attributes.created || new Date().toISOString(),
         CUSTOMER_EMAIL: values.email,
@@ -186,7 +186,7 @@ function PromoDialog({
         if (!busy) onOpenChange(next)
       }}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] gap-6 overflow-y-auto p-6 sm:max-w-2xl sm:p-8">
         <DialogHeader>
           <DialogTitle>Create Promo License</DialogTitle>
           <DialogDescription>
@@ -218,6 +218,7 @@ function PromoDialog({
                 ["lastName", "Last name"],
                 ["email", "Email (required)"],
                 ["name", "License name (optional)"],
+                ["marketingName", "Product name for email (optional)"],
                 ["reason", "Reason (required)"],
                 ["tag", "Promo tag"],
               ] as const
@@ -229,6 +230,11 @@ function PromoDialog({
                   type={key === "email" ? "email" : "text"}
                   required={["firstName", "email", "reason"].includes(key)}
                   maxLength={key === "email" ? 254 : 255}
+                  placeholder={
+                    key === "marketingName"
+                      ? product?.attributes.name
+                      : undefined
+                  }
                   list={key === "reason" ? "promo-reasons" : undefined}
                   value={values[key]}
                   onChange={(e) => field(key, e.target.value)}
