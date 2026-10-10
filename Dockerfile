@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1
+
+FROM node:22.23.3-alpine3.24@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS build
+
+ARG KEYGEN_PORTAL_COMMIT
+ARG VITE_KEYGEN_HOST
+ARG VITE_KEYGEN_VERSION
+ARG VITE_KEYGEN_ACCOUNT_ID
+ARG VITE_KEYGEN_EDITION
+ARG VITE_KEYGEN_MODE
+ARG VITE_KEYGEN_AUTHENTICATION_SCHEME=token
+ARG VITE_KEYGEN_SUPPORT_EMAIL=
+
+ENV VITE_KEYGEN_HOST=${VITE_KEYGEN_HOST}
+ENV VITE_KEYGEN_VERSION=${VITE_KEYGEN_VERSION}
+ENV VITE_KEYGEN_ACCOUNT_ID=${VITE_KEYGEN_ACCOUNT_ID}
+ENV VITE_KEYGEN_EDITION=${VITE_KEYGEN_EDITION}
+ENV VITE_KEYGEN_MODE=${VITE_KEYGEN_MODE}
+ENV VITE_KEYGEN_AUTHENTICATION_SCHEME=${VITE_KEYGEN_AUTHENTICATION_SCHEME}
+ENV VITE_KEYGEN_SUPPORT_EMAIL=${VITE_KEYGEN_SUPPORT_EMAIL}
+
+RUN apk add --no-cache git
+RUN corepack enable && corepack prepare pnpm@10.25.0 --activate
+
+WORKDIR /src
+
+RUN test -n "$KEYGEN_PORTAL_COMMIT" \
+  && git clone https://github.com/apowell656/keygen-portal.git . \
+  && git checkout "$KEYGEN_PORTAL_COMMIT" \
+  && test "$(git rev-parse HEAD)" = "$KEYGEN_PORTAL_COMMIT"
+
+COPY patches/ /tmp/patches/
+RUN git apply /tmp/patches/*.patch
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm run build
+
+FROM caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d AS runtime
+
+COPY Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /src/dist /srv
+
+EXPOSE 8080

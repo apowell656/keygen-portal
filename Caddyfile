@@ -1,0 +1,19 @@
+:8080 {
+	root * /srv
+
+	header {
+		Content-Security-Policy "default-src 'self'; connect-src 'self' https://{$VITE_KEYGEN_HOST} https://*.betterstackdata.com https://*.usefathom.com; script-src 'self' https://assets.keygen.sh https://*.betterstack.net https://*.usefathom.com; style-src 'self' https://assets.keygen.sh 'unsafe-inline'; font-src 'self' https://assets.keygen.sh; img-src 'self' https://{$VITE_KEYGEN_HOST} https://*.keygen.sh https://*.usefathom.com https://img.logo.dev data:; object-src 'none'; base-uri 'none'; form-action 'self' https://{$VITE_KEYGEN_HOST}; frame-src 'self' https://status.keygen.sh; frame-ancestors 'none'"
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	handle /api/promo/* {
+		reverse_proxy promo:8081
+	}
+
+	handle {
+		try_files {path} {path}/ /index.html
+		file_server
+	}
+}

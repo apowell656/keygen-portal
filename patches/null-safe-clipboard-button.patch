@@ -1,0 +1,16 @@
+diff --git a/src/components/clipboard-button.tsx b/src/components/clipboard-button.tsx
+index 1f83ea1..8b054c0 100644
+--- a/src/components/clipboard-button.tsx
++++ b/src/components/clipboard-button.tsx
+@@ -28,6 +28,11 @@ const ClipboardButton = forwardRef<HTMLDivElement, ClipboardButtonProps>(
+       [truncateStyle, maxLength],
+     )
+ 
++    // NOTE(local) Keygen omits `key` for legacy-encrypted licenses
++    if (value == null) {
++      return <span className="text-content-muted">—</span>
++    }
++
+     const display = truncate ? format(value) : value
+ 
+     return (

@@ -1,0 +1,17 @@
+diff --git a/src/lib/licenses.ts b/src/lib/licenses.ts
+index b8ca023f..150eda7d 100644
+--- a/src/lib/licenses.ts
++++ b/src/lib/licenses.ts
+@@ -265,9 +265,11 @@ export function getLimitPlaceholder(
+ }
+ 
+ export function truncateKey(
+-  key: string,
++  key: string | null | undefined,
+   { maxLength = 64 }: { maxLength?: number } = {},
+ ): string {
++  // NOTE(local) Keygen omits `key` for legacy-encrypted licenses
++  if (key == null) return "—"
+   if (key.length <= maxLength) return key
+ 
+   const ellipsis = "…"

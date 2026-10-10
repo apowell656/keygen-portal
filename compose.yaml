@@ -1,0 +1,54 @@
+services:
+  promo:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    restart: unless-stopped
+    env_file: .promo.env
+    volumes:
+      - promo-mail-state:/data
+    expose:
+      - "8081"
+    networks:
+      - web_network
+    security_opt:
+      - no-new-privileges:true
+
+  portal:
+    container_name: keygen-portal
+    build:
+      context: .
+      args:
+        KEYGEN_PORTAL_COMMIT: ${KEYGEN_PORTAL_COMMIT}
+        VITE_KEYGEN_HOST: ${VITE_KEYGEN_HOST}
+        VITE_KEYGEN_VERSION: ${VITE_KEYGEN_VERSION}
+        VITE_KEYGEN_ACCOUNT_ID: ${VITE_KEYGEN_ACCOUNT_ID}
+        VITE_KEYGEN_EDITION: ${VITE_KEYGEN_EDITION}
+        VITE_KEYGEN_MODE: ${VITE_KEYGEN_MODE}
+        VITE_KEYGEN_AUTHENTICATION_SCHEME: ${VITE_KEYGEN_AUTHENTICATION_SCHEME:-token}
+        VITE_KEYGEN_SUPPORT_EMAIL: ${VITE_KEYGEN_SUPPORT_EMAIL:-}
+    image: keygen-portal:${KEYGEN_PORTAL_COMMIT}
+    restart: unless-stopped
+    environment:
+      VITE_KEYGEN_HOST: ${VITE_KEYGEN_HOST}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/version.json"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - web_network
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  web_network:
+    external: true
+    name: web_network
+
+
+volumes:
+  promo-mail-state:

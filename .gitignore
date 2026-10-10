@@ -38,3 +38,7 @@ dist-ssr
 references/
 .pnpm-store/
 server/node_modules/
+
+# Private deployment runtime and fallback bundle
+.promo.env
+portal.bundle

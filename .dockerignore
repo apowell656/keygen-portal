@@ -6,3 +6,7 @@ references
 .env*
 *.log
 server/node_modules
+
+.promo.env
+portal.bundle
+.tanstack

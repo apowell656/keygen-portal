@@ -78,3 +78,7 @@ file.
 [sales]: mailto:sales@keygen.sh
 [alv2]: https://github.com/keygen-sh/keygen-portal/blob/master/LICENSE.md
 [cla]: https://keygen.sh/cla/
+
+## Aeriform deployment
+
+This checkout also contains the Docker Compose deployment. See [deployment instructions](docs/deployment.md) and [promotional licensing](docs/promo-license-workflow.md). Keep runtime configuration and reference files private and untracked.
