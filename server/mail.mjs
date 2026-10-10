@@ -51,7 +51,7 @@ export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {
     let body
     try {
       const text = await request.text()
-      if (text.length > 2048) throw Error()
+      if (text.length > 8192) throw Error()
       body = JSON.parse(text)
     } catch {
       return respond(400, { error: "Invalid request" })
@@ -61,18 +61,24 @@ export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {
       typeof body !== "object" ||
       Array.isArray(body) ||
       !/^[a-f0-9-]{36}$/i.test(body.licenseId || "") ||
-      Object.keys(body).some((k) => k !== "licenseId")
+      Object.keys(body).some((k) => !["licenseId", "licenseKey"].includes(k)) ||
+      (body.licenseKey !== undefined &&
+        (typeof body.licenseKey !== "string" ||
+          !body.licenseKey ||
+          body.licenseKey.length > 4096 ||
+          /[\x00-\x20\x7f]/.test(body.licenseKey)))
     )
       return respond(400, { error: "License ID required" })
     const environment = request.headers.get("Keygen-Environment")
     if (environment && !/^[\w-]{1,128}$/.test(environment))
       return respond(400, { error: "Invalid environment" })
     const root = `${config.baseUrl}/v1/accounts/${encodeURIComponent(config.account)}`
-    const api = async (path, global = false) => {
+    const api = async (path, global = false, options = {}) => {
       const response = await apiFetch(root + path, {
         headers: {
           Authorization: authorization,
           Accept: "application/vnd.api+json",
+          "Content-Type": "application/vnd.api+json",
           "Keygen-Version": config.version,
           ...(!global && environment
             ? { "Keygen-Environment": environment }
@@ -80,6 +86,7 @@ export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {
         },
         signal: AbortSignal.timeout(15000),
         redirect: "error",
+        ...options,
       })
       if (!response.ok) throw Error("Keygen rejected request")
       const json = await response.json()
@@ -115,8 +122,51 @@ export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {
       const license = await api(`/licenses/${body.licenseId}`)
       const m = license.attributes.metadata
       const ownerId = license.relationships.owner?.data?.id
-      if (m?.promo !== true || !ownerId || !license.attributes.key)
+      if (m?.promo !== true || !ownerId)
         return respond(400, { error: "Assigned promotional license required" })
+      let deliveryKey = license.attributes.key
+      if (deliveryKey) {
+        if (body.licenseKey && body.licenseKey !== deliveryKey)
+          return respond(400, {
+            error: "Provided key does not match this license",
+          })
+      } else {
+        if (!body.licenseKey)
+          return respond(400, {
+            error:
+              "The original legacy license key is required. Retry with the key shown at creation; do not create another license.",
+          })
+        let verified
+        try {
+          // Keygen's deployed legacy lookup verifies its hash. The key stays in
+          // the filtered request body, never a URL, response, log or metadata.
+          verified = await api("/licenses/actions/validate-key", false, {
+            method: "POST",
+            body: JSON.stringify({
+              meta: {
+                key: body.licenseKey,
+                encrypted: license.attributes.scheme === "LEGACY_ENCRYPT",
+              },
+            }),
+          })
+        } catch {
+          return respond(400, {
+            error:
+              "Keygen could not verify the provided key. Check the original key and license validation permissions.",
+          })
+        }
+        // A node-locked license can be known but not activated yet. Identity,
+        // rather than activation status, proves the key belongs to this record.
+        if (verified.type !== "licenses" || verified.id !== license.id)
+          return respond(400, {
+            error: "Provided key does not match this license",
+          })
+        deliveryKey = body.licenseKey
+      }
+      const deliveryLicense = {
+        ...license,
+        attributes: { ...license.attributes, key: deliveryKey },
+      }
       const user = await api(`/users/${encodeURIComponent(ownerId)}`)
       if (
         user.attributes.email.toLowerCase() !==
@@ -136,7 +186,7 @@ export function createMailHandler({ config, apiFetch = fetch, send, ledger }) {
           from: config.from,
           to: user.attributes.email,
           replyTo: config.support,
-          ...renderMail(license, user, product, config.support),
+          ...renderMail(deliveryLicense, user, product, config.support),
         })
       } catch (error) {
         // Explicit SMTP rejection guarantees no acceptance. Network/timeouts are ambiguous.

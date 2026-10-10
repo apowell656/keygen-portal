@@ -1,3 +1,4 @@
+import { PromoEmailRecovery } from "./promo-email-recovery"
 import { useRef, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
@@ -59,6 +60,7 @@ export function PromoAction() {
       <Button size="sm" onClick={() => setOpen(true)}>
         Create Promo License
       </Button>
+      <PromoEmailRecovery />
       <PromoDialog open={open} onOpenChange={setOpen} />
     </>
   )
@@ -148,7 +150,12 @@ function PromoDialog({
       current = await provision(values, product, current, update)
       if (values.sendEmail && current.email !== "sent") {
         try {
-          await keygen.client.sendPromoEmail(current.license!.id)
+          await keygen.client.sendPromoEmail(
+            current.license!.id,
+            current.license!.attributes.key?.length <= 4096
+              ? current.license!.attributes.key
+              : undefined,
+          )
           update({ ...current, email: "sent" })
         } catch (e) {
           update({ ...current, email: "failed" })

@@ -352,3 +352,95 @@ it("uses the stored marketing name throughout email and omits pricing", () => {
     ).subject,
   ).toContain("Nimbus")
 })
+
+function legacyFixture() {
+  const f = fixture()
+  delete f.records[`/licenses/${id}`].attributes.key
+  f.records[`/licenses/${id}`].attributes.scheme = "LEGACY_ENCRYPT"
+  f.records["/licenses/actions/validate-key"] = { type: "licenses", id }
+  return f
+}
+it("delivers a legacy license using its verified creation-time key", async () => {
+  const f = legacyFixture()
+  expect(
+    (await f.handler(request({ licenseId: id, licenseKey: "LEGACY-KEY" })))
+      .status,
+  ).toBe(200)
+  const verification = f.apiFetch.mock.calls.find(([url]) =>
+    url.endsWith("/actions/validate-key"),
+  )
+  expect(verification[1].method).toBe("POST")
+  expect(JSON.parse(verification[1].body)).toEqual({
+    meta: { key: "LEGACY-KEY", encrypted: true },
+  })
+  expect(
+    f.apiFetch.mock.calls.every(([url]) => !url.includes("LEGACY-KEY")),
+  ).toBe(true)
+  expect(f.send).toHaveBeenCalledWith(
+    expect.objectContaining({ html: expect.stringContaining("LEGACY-KEY") }),
+  )
+  expect(f.records[`/licenses/${id}`].attributes).not.toHaveProperty("key")
+  expect(
+    f.ledger.mark.mock.calls.every(
+      (args) => !JSON.stringify(args).includes("LEGACY-KEY"),
+    ),
+  ).toBe(true)
+})
+it("requires the original key when a legacy retrieval omits it", async () => {
+  const f = legacyFixture()
+  const response = await f.handler(request())
+  expect(response.status).toBe(400)
+  expect((await response.json()).error).toContain("original legacy license key")
+  expect(f.send).not.toHaveBeenCalled()
+})
+it("rejects invalid keys and keys belonging to another license", async () => {
+  for (const data of [undefined, { type: "licenses", id: "another-license" }]) {
+    const f = legacyFixture()
+    f.records["/licenses/actions/validate-key"] = data
+    expect(
+      (await f.handler(request({ licenseId: id, licenseKey: "WRONG-KEY" })))
+        .status,
+    ).toBe(400)
+    expect(f.send).not.toHaveBeenCalled()
+    expect(f.ledger.mark).not.toHaveBeenCalled()
+  }
+})
+it("retries rejected legacy delivery without recreating any record", async () => {
+  const f = legacyFixture()
+  f.send.mockRejectedValueOnce(
+    Object.assign(Error("rejected"), { responseCode: 550 }),
+  )
+  const body = { licenseId: id, licenseKey: "LEGACY-KEY" }
+  expect((await f.handler(request(body))).status).toBe(502)
+  expect((await f.handler(request(body))).status).toBe(200)
+  expect(
+    f.apiFetch.mock.calls
+      .filter(([, options]) => options.method === "POST")
+      .every(([url]) => url.endsWith("/actions/validate-key")),
+  ).toBe(true)
+  expect((await f.handler(request(body))).status).toBe(200)
+  expect(f.send).toHaveBeenCalledTimes(2)
+})
+it("rejects malformed keys and canonical-key mismatches", async () => {
+  const f = fixture()
+  for (const licenseKey of [
+    null,
+    "",
+    "x".repeat(4097),
+    "HEADER\r\nINJECTION",
+    "WRONG-KEY",
+  ])
+    expect(
+      (await f.handler(request({ licenseId: id, licenseKey }))).status,
+    ).toBe(400)
+  expect(f.send).not.toHaveBeenCalled()
+})
+it("keeps legacy key submission administrator-only", async () => {
+  const f = fixture("user")
+  expect(
+    (await f.handler(request({ licenseId: id, licenseKey: "LEGACY-KEY" })))
+      .status,
+  ).toBe(403)
+  expect(f.apiFetch).toHaveBeenCalledTimes(1)
+  expect(f.send).not.toHaveBeenCalled()
+})

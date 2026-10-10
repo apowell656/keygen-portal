@@ -10,7 +10,7 @@ The app is a Vite SPA. Its Wrangler configuration serves static assets with no h
 
 The smallest secure integration adds a small Node HTTP service behind Caddy for two fixed paths. It uses the Portal's existing user, policy, license and ownership API utilities and request envelopes through an optional protected transport in `Client.request`. Other application requests retain their existing transport. Product/policy selection uses the existing environment-scoped queries. The server calls Keygen `/me` with the authenticated caller's token and requires the `admin` role before forwarding any promo operation. Keygen independently enforces that token's permissions, account and environment. No legacy service admin token is required or copied into the frontend. The UI also requires creation, ownership, user, product and policy permissions.
 
-`/api/promo/keygen` permits only user lookup/creation, policy reads, promotional license creation and ownership assignment in the configured account. It validates recipient ownership and the policy's product. It is not a general API proxy. `/api/promo/email` accepts a license ID only, loads the license, owner, policy and product from Keygen, and derives recipient, key, subject and email contents from those records. Callers cannot supply an email body or arbitrary recipient. Origin checks, POST-only handling, bounded bodies, server-side admin checks and send limits protect the endpoints. Tokens are forwarded only to the fixed HTTPS Keygen origin. No credentials or license keys are logged.
+`/api/promo/keygen` permits only user lookup/creation, policy reads, promotional license creation and ownership assignment in the configured account. It validates recipient ownership and the policy's product. It is not a general API proxy. `/api/promo/email` accepts a license ID and, when Keygen cannot return the original key, an optional creation-time key, loads the license, owner, policy and product from Keygen, and derives recipient, key, subject and email contents from those records. Callers cannot supply an email body or arbitrary recipient. Origin checks, POST-only handling, bounded bodies, server-side admin checks and send limits protect the endpoints. Tokens are forwarded only to the fixed HTTPS Keygen origin. No credentials or license keys are logged.
 
 ## Configuration and deployment
 
@@ -60,3 +60,36 @@ Development verification passed with placeholder public configuration in disposa
 Node/pnpm were unavailable on the session host, so equivalent project binaries were run inside an isolated Node container. The frontend lockfile remains unchanged. No real Keygen mutations, SMTP deliveries, production deployment, commits or remote pushes were performed. Before deployment, review and commit/push the feature branch, pin the wrapper to that fork commit, configure the private service, and verify a controlled staging workflow.
 
 The optional Product name for email field supplies a marketing name in the preview, subject, HTML and plain-text email. It is stored as `marketingProductName` in license metadata so retries retain it; blank values use the actual Keygen product name. The product relationship and `app` code remain based on the selected product. Promotional emails omit pricing.
+
+## Reported manual test failure — October 9, 2026
+
+The owner reported trying the deployed promotional licensing workflow and seeing:
+
+```text
+Email: failed
+
+Assigned promotional license required
+```
+
+The cause was confirmed by read-only inspection of the deployed Keygen model and serializer. The recent test license `69ee1f9b-d4b9-4f55-b452-36309c119d6f` was created at October 9, 2026, 8:27 p.m. America/New_York (October 10, 2026, 00:27 UTC). It has an assigned owner and `promo: true`, but uses the `LEGACY_ENCRYPT` scheme and has no creation-time raw key available after retrieval.
+
+Keygen's deployed `LicenseSerializer` omits `attributes.key` when a legacy-encrypted license has no raw key. The email service fetches the license again and checks promotional metadata, owner linkage and key availability together. The first two checks pass; the missing key triggers the generic “Assigned promotional license required” error. This is an integration assumption error, not evidence of failed ownership assignment. The request is rejected before SMTP delivery; replacing environment files will not restore the missing key.
+
+The fix passes the creation-time legacy key from memory to the protected email endpoint. The server verifies it against the same license through Keygen's `validate-key` action before rendering the approved template. Verification may produce Keygen validation events; it does not create another license. The key is never placed in a URL, delivery marker, metadata or persistent browser storage.
+
+For an existing failed delivery, use **Retry Promo Email**, enter the existing license ID and its original saved key, review the template and confirm delivery. The existing owner determines the recipient. If the original legacy key was lost after refreshing, Keygen cannot recover it from its stored hash. Do not create another license merely to retry email. New creation flows send the key while it remains available in memory; ordinary retrievable keys continue to be loaded by the server. Existing delivery markers prevent duplicate sends. Regression tests cover verification, mismatched keys, authorization and retry after a definite SMTP rejection.
+
+## Changing environment configuration
+
+Keep `/root/keygen-portal/.env` for public portal build settings (`VITE_KEYGEN_*` and `KEYGEN_PORTAL_COMMIT`). Do not replace it with `references/legacy.env`: the legacy file has a different variable set and includes private credentials.
+
+The private promotional service reads `/root/keygen-portal/.promo.env`. Its SMTP settings were copied from `references/legacy.env` with explicit owner approval; the original references remain outside source control. Change SMTP host, port, username, password, sender or support address in `.promo.env`, keep its permissions restricted, then recreate the service so Compose loads the updated environment:
+
+```bash
+nano /root/keygen-portal/.promo.env
+chmod 600 /root/keygen-portal/.promo.env
+cd /root/keygen-portal
+docker compose up -d --force-recreate promo
+```
+
+SMTP environment changes require service recreation, not an image rebuild. A plain restart retains the container's existing environment. Changes to public `VITE_KEYGEN_*` build settings require rebuilding and recreating the portal; keep the private service's Keygen origin, account and API version consistent with those settings. Never print, commit or bundle either the legacy secrets or `.promo.env`.

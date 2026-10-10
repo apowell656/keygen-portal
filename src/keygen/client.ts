@@ -64,7 +64,7 @@ export class Client {
     return this.environmentToken ?? this.rootToken
   }
 
-  async sendPromoEmail(licenseId: string): Promise<void> {
+  async sendPromoEmail(licenseId: string, licenseKey?: string): Promise<void> {
     if (!config.isTokenAuthenticated || !this.activeToken)
       throw new Error("Promo email requires token authentication")
     const response = await fetch("/api/promo/email", {
@@ -74,7 +74,10 @@ export class Client {
         Authorization: `Bearer ${this.activeToken}`,
         ...(this.environment ? { "Keygen-Environment": this.environment } : {}),
       },
-      body: JSON.stringify({ licenseId }),
+      body: JSON.stringify({
+        licenseId,
+        ...(licenseKey ? { licenseKey } : {}),
+      }),
     })
     const result = (await response.json().catch(() => ({}))) as {
       error?: string
