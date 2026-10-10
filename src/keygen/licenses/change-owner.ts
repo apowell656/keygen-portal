@@ -7,12 +7,14 @@ config.validate()
 
 interface ChangeOwnerProps {
   id: string
+  promo?: boolean
   ownerId: string | null
 }
 
 export default async function changeOwner({
   id,
   ownerId,
+  promo,
 }: ChangeOwnerProps): Promise<LicenseResponse> {
   const body = {
     data: ownerId ? { type: "users", id: ownerId } : null,
@@ -22,6 +24,7 @@ export default async function changeOwner({
     `/accounts/${config.id}/licenses/${id}/owner`,
     {
       method: "PUT",
+      promo,
       body: JSON.stringify(body),
     },
   )) as LicenseResponse

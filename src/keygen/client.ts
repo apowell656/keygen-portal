@@ -64,10 +64,33 @@ export class Client {
     return this.environmentToken ?? this.rootToken
   }
 
+  async sendPromoEmail(licenseId: string, licenseKey?: string): Promise<void> {
+    if (!config.isTokenAuthenticated || !this.activeToken)
+      throw new Error("Promo email requires token authentication")
+    const response = await fetch("/api/promo/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.activeToken}`,
+        ...(this.environment ? { "Keygen-Environment": this.environment } : {}),
+      },
+      body: JSON.stringify({
+        licenseId,
+        ...(licenseKey ? { licenseKey } : {}),
+      }),
+    })
+    const result = (await response.json().catch(() => ({}))) as {
+      error?: string
+    }
+    if (!response.ok)
+      throw new Error(result.error || "Email delivery endpoint unavailable")
+  }
+
   async request<T = unknown>(
     endpoint: string,
     options: RequestInit & {
       root?: boolean
+      promo?: boolean
       signal?: AbortSignal
       prefix?: string
       environment?: string | null
@@ -102,12 +125,54 @@ export class Client {
       ...options.headers,
     }
 
-    const { root, prefix, environment, environmentToken, ...fetchOptions } =
-      options
+    const {
+      root,
+      prefix,
+      environment,
+      environmentToken,
+      promo,
+      ...fetchOptions
+    } = options
     void root
     void environment
     void environmentToken
 
+    if (promo) {
+      if (!config.isTokenAuthenticated || !authToken)
+        return {
+          errors: [
+            new APIError({
+              title: "Authentication required",
+              detail: "Promotional provisioning requires token authentication",
+              code: "PROMO_AUTH",
+            }),
+          ],
+        }
+      let promoBody: unknown
+      if (options.body != null) {
+        if (typeof options.body !== "string")
+          throw new Error("Promotional requests require a JSON body")
+        promoBody = JSON.parse(options.body) as unknown
+      }
+      const response = await fetch("/api/promo/keygen", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+          ...(envHeader ? { "Keygen-Environment": envHeader } : {}),
+        },
+        body: JSON.stringify({
+          endpoint,
+          method: options.method ?? "GET",
+          body: promoBody,
+        }),
+      })
+      if (!response.ok)
+        throw new Error(
+          "Promotional provisioning endpoint rejected or could not confirm the request; check existing records before retrying",
+        )
+      return (await response.json()) as APIResponse<T>
+    }
     const request = await resolveFetch()
     const response = await request(
       `${this.host}/${prefix ?? "v1"}${endpoint}`,

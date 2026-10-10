@@ -1,0 +1,1 @@
+{"name":"aeriform-promo-mail","private":true,"type":"module","scripts":{"start":"node index.mjs"},"dependencies":{"nodemailer":"^10.0.16"}}

@@ -6,13 +6,18 @@ config.validate()
 
 interface GetProps {
   id: string
+  promo?: boolean
 }
 
-export default async function get({ id }: GetProps): Promise<PolicyResponse> {
+export default async function get({
+  id,
+  promo,
+}: GetProps): Promise<PolicyResponse> {
   const result = (await client.request(
     `/accounts/${config.id}/policies/${id}`,
     {
       method: "GET",
+      promo,
     },
   )) as PolicyResponse
 
